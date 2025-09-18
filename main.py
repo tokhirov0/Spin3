@@ -139,16 +139,16 @@ def force_subscribe(chat_id):
     bot.send_message(chat_id, "👉 Botdan foydalanish uchun quyidagi kanallarga a’zo bo‘ling:", reply_markup=markup)
     return True
 
-# --- /start komandasi (referal bilan) ---
+# --- /start komandasi ---
 @bot.message_handler(commands=["start"])
 def start(message):
     chat_id = message.chat.id
     args = message.text.split()
 
-    # Foydalanuvchi yaratish
+    # Foydalanuvchini yaratish yoki olish
     get_user(chat_id)
 
-    # --- Referal tekshirish ---
+    # --- Referal qismi ---
     if len(args) > 1:
         ref_id = args[1]
         if str(chat_id) != ref_id:  # o‘zini-o‘zi refer qila olmaydi
@@ -164,7 +164,8 @@ def start(message):
                     (new_referrals, new_spins, ref_id)
                 )
                 conn.commit()
-                # kim kirgani haqida xabar
+
+                # Kim kirgani haqida xabar chiqarish
                 ref_name = f"@{message.from_user.username}" if message.from_user.username else f"ID:{chat_id}"
                 try:
                     bot.send_message(
@@ -175,7 +176,7 @@ def start(message):
                     pass
             conn.close()
 
-    # --- Obuna tekshirish ---
+    # --- Kanalga obuna tekshirish ---
     if not check_channel_membership(chat_id):
         force_subscribe(chat_id)
         return
@@ -256,7 +257,7 @@ def process_withdraw(message):
     except:
         bot.send_message(chat_id, "❌ Faqat son kiriting!")
 
-# --- Referal tugmasi ---
+# --- Referal menyu ---
 @bot.message_handler(func=lambda m: m.text=="👥 Referal")
 def referal(message):
     chat_id = message.chat.id
