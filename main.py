@@ -34,7 +34,8 @@ def init_db():
             balance INTEGER DEFAULT 0,
             spins INTEGER DEFAULT 1,
             last_bonus_time TEXT,
-            referrals INTEGER DEFAULT 0
+            referrals INTEGER DEFAULT 0,
+            invited_by TEXT
         )
     ''')
     cursor.execute('''
@@ -64,15 +65,16 @@ def get_user(chat_id):
         "balance": row[1],
         "spins": row[2],
         "last_bonus_time": row[3],
-        "referrals": row[4]
+        "referrals": row[4],
+        "invited_by": row[5]
     }
 
 def update_user(user):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE users SET balance=?, spins=?, last_bonus_time=?, referrals=? WHERE chat_id=?
-    ''', (user["balance"], user["spins"], user["last_bonus_time"], user["referrals"], str(user["chat_id"])))
+        UPDATE users SET balance=?, spins=?, last_bonus_time=?, referrals=?, invited_by=? WHERE chat_id=?
+    ''', (user["balance"], user["spins"], user["last_bonus_time"], user["referrals"], user["invited_by"], str(user["chat_id"])))
     conn.commit()
     conn.close()
 
@@ -146,10 +148,10 @@ def start(message):
     args = message.text.split()
 
     # Foydalanuvchini yaratish yoki olish
-    get_user(chat_id)
+    user = get_user(chat_id)
 
-    # --- Referal qismi ---
-    if len(args) > 1:
+    # --- Referal qismi (faqat birinchi marta ishlaydi) ---
+    if len(args) > 1 and not user["invited_by"]:
         ref_id = args[1]
         if str(chat_id) != ref_id:  # o‘zini-o‘zi refer qila olmaydi
             conn = sqlite3.connect(DB_FILE)
@@ -163,9 +165,13 @@ def start(message):
                     "UPDATE users SET referrals=?, spins=? WHERE chat_id=?",
                     (new_referrals, new_spins, ref_id)
                 )
+                # Kim taklif qilganini yozamiz
+                cursor.execute(
+                    "UPDATE users SET invited_by=? WHERE chat_id=?",
+                    (ref_id, str(chat_id))
+                )
                 conn.commit()
 
-                # Kim kirgani haqida xabar chiqarish
                 ref_name = f"@{message.from_user.username}" if message.from_user.username else f"ID:{chat_id}"
                 try:
                     bot.send_message(
@@ -241,9 +247,9 @@ def withdraw(message):
         bot.send_message(chat_id, "❌ Minimal pul yechish 100000 so‘m!")
         return
     msg = bot.send_message(chat_id, "Nech so‘m yechmoqchisiz?", reply_markup=types.ForceReply(selective=False))
-    bot.register_next_step_handler(msg, process_withdraw)
+    bot.register_next_step_handler(msg, process_withdraw_amount)
 
-def process_withdraw(message):
+def process_withdraw_amount(message):
     chat_id = message.chat.id
     try:
         amount = int(message.text)
@@ -251,11 +257,32 @@ def process_withdraw(message):
         if amount < 100000 or amount > user["balance"]:
             bot.send_message(chat_id, "❌ Noto‘g‘ri miqdor!")
             return
-        user["balance"] -= amount
-        update_user(user)
-        bot.send_message(chat_id, f"✅ Pul yechish: {amount} so‘m qabul qilindi!\n💵 48 soat ichida hisobingizga tushadi.")
+        msg = bot.send_message(chat_id, "💳 Karta raqamingizni kiriting (16 raqamli):", reply_markup=types.ForceReply(selective=False))
+        bot.register_next_step_handler(msg, process_withdraw_card, amount)
     except:
         bot.send_message(chat_id, "❌ Faqat son kiriting!")
+
+def process_withdraw_card(message, amount):
+    chat_id = message.chat.id
+    card = message.text.strip()
+    if not (card.isdigit() and len(card) == 16):
+        bot.send_message(chat_id, "❌ Noto‘g‘ri karta raqami! 16 ta raqam bo‘lishi kerak.")
+        return
+    
+    user = get_user(chat_id)
+    user["balance"] -= amount
+    update_user(user)
+
+    # Adminni xabardor qilamiz
+    try:
+        bot.send_message(
+            ADMIN_ID,
+            f"💸 Pul yechish so‘rovi:\n👤 ID: {chat_id}\n💰 Miqdor: {amount} so‘m\n💳 Karta: {card}"
+        )
+    except:
+        pass
+
+    bot.send_message(chat_id, f"✅ Pul yechish so‘rovingiz qabul qilindi!\n💰 Miqdor: {amount} so‘m\n💳 Karta: {card}\n\n48 soat ichida hisobingizga tushadi.")
 
 # --- Referal menyu ---
 @bot.message_handler(func=lambda m: m.text=="👥 Referal")
