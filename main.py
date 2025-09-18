@@ -210,7 +210,7 @@ def process_withdraw(message):
 @bot.message_handler(func=lambda m: m.text=="👥 Referal")
 def referal(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, f"Sizning referal linkingiz: https://t.me/Spinomad1_bot?start={chat_id}")
+    bot.send_message(chat_id, f"Sizning referal linkingiz: https://t.me/Spinomat_bot?start={chat_id}")
 
 # --- Admin panel ---
 @bot.message_handler(func=lambda m: m.chat.id==ADMIN_ID)
