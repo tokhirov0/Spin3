@@ -2,10 +2,9 @@ import os
 import random
 import logging
 from datetime import datetime, timedelta
-from threading import Thread
 import sqlite3
 from telebot import TeleBot, types
-from flask import Flask
+from flask import Flask, request
 from dotenv import load_dotenv
 
 # --- Logging sozlamalari ---
@@ -29,7 +28,6 @@ DB_FILE = "bot.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Foydalanuvchilar
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             chat_id TEXT PRIMARY KEY,
@@ -39,7 +37,6 @@ def init_db():
             referrals INTEGER DEFAULT 0
         )
     ''')
-    # Kanallar
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS channels (
             channel TEXT PRIMARY KEY
@@ -134,12 +131,10 @@ def force_subscribe(chat_id):
         return False
     markup = types.InlineKeyboardMarkup()
     for ch in channels:
-        markup.add(
-            types.InlineKeyboardButton(
-                text=f"🔗 {ch}",
-                url=f"https://t.me/{ch[1:]}" if ch.startswith("@") else f"https://t.me/{ch}"
-            )
-        )
+        markup.add(types.InlineKeyboardButton(
+            text=f"🔗 {ch}",
+            url=f"https://t.me/{ch[1:]}" if ch.startswith("@") else f"https://t.me/{ch}"
+        ))
     markup.add(types.InlineKeyboardButton("✅ Tekshirish", callback_data="check_subs"))
     bot.send_message(chat_id, "👉 Botdan foydalanish uchun quyidagi kanallarga a’zo bo‘ling:", reply_markup=markup)
     return True
@@ -148,7 +143,7 @@ def force_subscribe(chat_id):
 @bot.message_handler(commands=["start"])
 def start(message):
     chat_id = message.chat.id
-    user = get_user(chat_id)
+    get_user(chat_id)
 
     if not check_channel_membership(chat_id):
         force_subscribe(chat_id)
@@ -226,7 +221,7 @@ def process_withdraw(message):
             return
         user["balance"] -= amount
         update_user(user)
-        bot.send_message(chat_id, f"Pul yechish: {amount} so‘m qabul qilindi!")
+        bot.send_message(chat_id, f"✅ Pul yechish: {amount} so‘m qabul qilindi!\n💵 48 soat ichida hisobingizga tushadi.")
     except:
         bot.send_message(chat_id, "❌ Faqat son kiriting!")
 
@@ -272,15 +267,15 @@ def admin_remove_channel(message):
     bot.send_message(message.chat.id, f"Kanal o‘chirildi: {channel}")
 
 # --- Flask endpoint ---
-@app.route("/")
+@app.route("/", methods=["GET"])
 def index():
     return "Bot ishlayapti!"
 
-# --- Polling thread ---
-def polling():
-    bot.infinity_polling(skip_pending=True)
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+    update = request.stream.read().decode("utf-8")
+    bot.process_new_updates([types.Update.de_json(update)])
+    return "OK", 200
 
 if __name__=="__main__":
-    t = Thread(target=polling)
-    t.start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
