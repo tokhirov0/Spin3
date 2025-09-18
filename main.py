@@ -330,14 +330,12 @@ def admin_remove_channel(message):
     bot.send_message(message.chat.id, f"Kanal o‘chirildi: {channel}")
 
 # --- Flask endpoint ---
-@app.route("/", methods=["GET"])
-def index():
-    return "Bot ishlayapti!"
-
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
-    update = request.stream.read().decode("utf-8")
-    bot.process_new_updates([types.Update.de_json(update)])
+    json_update = request.get_json(force=True)
+    if json_update:
+        update = types.Update.de_json(json_update)
+        bot.process_new_updates([update])
     return "OK", 200
 
 if __name__=="__main__":
