@@ -127,27 +127,51 @@ def admin_panel():
     kb.add("🔙 Orqaga")
     return kb
 
-# --- Bot handlerlari ---
+# --- Obuna bo‘lish tugmalari ---
+def force_subscribe(chat_id):
+    channels = get_channels()
+    if not channels:
+        return False
+    markup = types.InlineKeyboardMarkup()
+    for ch in channels:
+        markup.add(
+            types.InlineKeyboardButton(
+                text=f"🔗 {ch}",
+                url=f"https://t.me/{ch[1:]}" if ch.startswith("@") else f"https://t.me/{ch}"
+            )
+        )
+    markup.add(types.InlineKeyboardButton("✅ Tekshirish", callback_data="check_subs"))
+    bot.send_message(chat_id, "👉 Botdan foydalanish uchun quyidagi kanallarga a’zo bo‘ling:", reply_markup=markup)
+    return True
+
+# --- /start komandasi ---
 @bot.message_handler(commands=["start"])
 def start(message):
     chat_id = message.chat.id
     user = get_user(chat_id)
 
-    # Kanal a’zoligi tekshirish
     if not check_channel_membership(chat_id):
-        channels = get_channels()
-        if channels:
-            bot.send_message(chat_id, "Botdan foydalanish uchun quyidagi kanallarga a’zo bo‘ling:\n" + "\n".join(channels))
-            return
+        force_subscribe(chat_id)
+        return
 
     bot.send_message(chat_id, "Assalomu alaykum! Tanlang:", reply_markup=main_menu())
+
+# --- Inline tugma qayta tekshirish ---
+@bot.callback_query_handler(func=lambda call: call.data == "check_subs")
+def recheck_subscription(call):
+    if check_channel_membership(call.from_user.id):
+        bot.answer_callback_query(call.id, "✅ Obuna bo‘ldingiz!")
+        bot.send_message(call.message.chat.id, "Botdan foydalanishingiz mumkin ✅", reply_markup=main_menu())
+    else:
+        bot.answer_callback_query(call.id, "❌ Hali barcha kanallarga obuna bo‘lmadingiz.")
+        force_subscribe(call.message.chat.id)
 
 # --- Spin ---
 @bot.message_handler(func=lambda m: m.text=="🎰 Spin")
 def spin(message):
     chat_id = message.chat.id
     if not check_channel_membership(chat_id):
-        bot.send_message(chat_id, "Iltimos, avval kanallarga a’zo bo‘ling!")
+        force_subscribe(chat_id)
         return
     user = get_user(chat_id)
     if user["spins"] < 1:
@@ -164,13 +188,13 @@ def spin(message):
 def daily_bonus(message):
     chat_id = message.chat.id
     if not check_channel_membership(chat_id):
-        bot.send_message(chat_id, "Iltimos, avval kanallarga a’zo bo‘ling!")
+        force_subscribe(chat_id)
         return
     user = get_user(chat_id)
     now = datetime.now()
     if user["last_bonus_time"]:
         last_bonus = datetime.fromisoformat(user["last_bonus_time"])
-        if now - datetime.fromisoformat(user["last_bonus_time"]) < timedelta(days=1):
+        if now - last_bonus < timedelta(days=1):
             bot.send_message(chat_id, "Bugun bonus olgansiz! Ertaga urinib ko‘ring.")
             return
     user["spins"] += 1
@@ -183,7 +207,7 @@ def daily_bonus(message):
 def withdraw(message):
     chat_id = message.chat.id
     if not check_channel_membership(chat_id):
-        bot.send_message(chat_id, "Iltimos, avval kanallarga a’zo bo‘ling!")
+        force_subscribe(chat_id)
         return
     user = get_user(chat_id)
     if user["balance"] < 100000:
