@@ -139,12 +139,43 @@ def force_subscribe(chat_id):
     bot.send_message(chat_id, "👉 Botdan foydalanish uchun quyidagi kanallarga a’zo bo‘ling:", reply_markup=markup)
     return True
 
-# --- /start komandasi ---
+# --- /start komandasi (referal bilan) ---
 @bot.message_handler(commands=["start"])
 def start(message):
     chat_id = message.chat.id
+    args = message.text.split()
+
+    # Foydalanuvchi yaratish
     get_user(chat_id)
 
+    # --- Referal tekshirish ---
+    if len(args) > 1:
+        ref_id = args[1]
+        if str(chat_id) != ref_id:  # o‘zini-o‘zi refer qila olmaydi
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE chat_id=?", (ref_id,))
+            ref_row = cursor.fetchone()
+            if ref_row:
+                new_referrals = ref_row[4] + 1
+                new_spins = ref_row[2] + 1
+                cursor.execute(
+                    "UPDATE users SET referrals=?, spins=? WHERE chat_id=?",
+                    (new_referrals, new_spins, ref_id)
+                )
+                conn.commit()
+                # kim kirgani haqida xabar
+                ref_name = f"@{message.from_user.username}" if message.from_user.username else f"ID:{chat_id}"
+                try:
+                    bot.send_message(
+                        int(ref_id),
+                        f"✅ {ref_name} sizning referalingizdan kirdi!\n🎁 Sizga 1 ta spin berildi."
+                    )
+                except:
+                    pass
+            conn.close()
+
+    # --- Obuna tekshirish ---
     if not check_channel_membership(chat_id):
         force_subscribe(chat_id)
         return
@@ -225,11 +256,15 @@ def process_withdraw(message):
     except:
         bot.send_message(chat_id, "❌ Faqat son kiriting!")
 
-# --- Referal ---
+# --- Referal tugmasi ---
 @bot.message_handler(func=lambda m: m.text=="👥 Referal")
 def referal(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, f"Sizning referal linkingiz: https://t.me/Spinomat_bot?start={chat_id}")
+    bot.send_message(
+        chat_id,
+        f"Sizning referal linkingiz:\nhttps://t.me/{bot.get_me().username}?start={chat_id}\n\n"
+        "Do‘stlaringizni taklif qiling va spin yuting!"
+    )
 
 # --- Admin panel ---
 @bot.message_handler(func=lambda m: m.chat.id==ADMIN_ID)
