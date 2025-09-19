@@ -43,8 +43,8 @@ def get_user(chat_id):
     users = load_json(USERS_FILE, {})
     if str(chat_id) not in users:
         users[str(chat_id)] = {
-            "balance": 0,
-            "spins": 1,
+            "balance": 0,       # boshlang‘ich balans 0
+            "spins": 1,         # faqat 1 ta spin
             "last_bonus_time": None,
             "referrals": 0,
             "invited_by": None
@@ -227,7 +227,6 @@ def process_withdraw_card(message, amount):
     user["balance"] -= amount
     update_user(chat_id, user)
 
-    # Adminni xabardor qilamiz
     try:
         bot.send_message(ADMIN_ID, f"💸 Pul yechish so‘rovi:\n👤 ID: {chat_id}\n💰 Miqdor: {amount} so‘m\n💳 Karta: {card}")
     except:
